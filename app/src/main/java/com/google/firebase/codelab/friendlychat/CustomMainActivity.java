@@ -20,11 +20,11 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.support.annotation.NonNull;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
@@ -78,11 +78,32 @@ import com.google.firebase.storage.UploadTask;
 import java.util.HashMap;
 import java.util.Map;
 
+import butterknife.BindView;
+import butterknife.ButterKnife;
 import de.hdodenhof.circleimageview.CircleImageView;
 
 public class CustomMainActivity extends AppCompatActivity
         implements GoogleApiClient.OnConnectionFailedListener {
 
+    @BindView(R2.id.adView)
+    AdView mAdView;
+
+    @BindView(R2.id.progressBar)
+    ProgressBar mProgressBar;
+
+    @BindView(R2.id.messageRecyclerView)
+    RecyclerView mMessageRecyclerView;
+
+    @BindView(R2.id.messageEditText)
+    EditText mMessageEditText;
+
+    @BindView(R2.id.sendButton)
+    Button mSendButton;
+
+    @BindView(R2.id.addMessageImageView)
+    ImageView mAddMessageImageView;
+
+    private LinearLayoutManager mLinearLayoutManager;
 
 
     public static class CustomMessageViewHolder extends RecyclerView.ViewHolder {
@@ -128,13 +149,7 @@ public class CustomMainActivity extends AppCompatActivity
     private GoogleApiClient mGoogleApiClient;
     private static final String MESSAGE_URL = "http://friendlychat.firebase.google.com/message/";
 
-    private Button mSendButton;
-    private RecyclerView mMessageRecyclerView;
-    private LinearLayoutManager mLinearLayoutManager;
-    private ProgressBar mProgressBar;
-    private EditText mMessageEditText;
-    private ImageView mAddMessageImageView;
-    private AdView mAdView;
+
 
     // Firebase instance variables
     private FirebaseAuth mFirebaseAuth;
@@ -149,7 +164,7 @@ public class CustomMainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        initViews();
+        ButterKnife.bind(this);
         mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
         // Set default username is anonymous.
         mUsername = ANONYMOUS;
@@ -648,14 +663,4 @@ public class CustomMainActivity extends AppCompatActivity
     private void causeCrash() {
         throw new NullPointerException("Fake null pointer exception");
     }
-
-    private void initViews() {
-        mAdView = (AdView) findViewById(R.id.adView);
-        mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
-        mMessageRecyclerView = (RecyclerView) findViewById(R.id.messageRecyclerView);
-        mMessageEditText = (EditText) findViewById(R.id.messageEditText);
-        mSendButton = (Button) findViewById(R.id.sendButton);
-        mAddMessageImageView = (ImageView) findViewById(R.id.addMessageImageView);
-    }
-
 }

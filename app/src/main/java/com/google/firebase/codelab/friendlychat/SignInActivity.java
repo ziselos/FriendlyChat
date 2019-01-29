@@ -17,8 +17,9 @@ package com.google.firebase.codelab.friendlychat;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.v7.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatEditText;
 import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
@@ -37,13 +38,23 @@ import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.GoogleAuthProvider;
 
+import butterknife.BindView;
+import butterknife.ButterKnife;
+
 public class SignInActivity extends AppCompatActivity implements
         GoogleApiClient.OnConnectionFailedListener, View.OnClickListener {
 
     private static final String TAG = "SignInActivity";
     private static final int RC_SIGN_IN = 9001;
 
-    private SignInButton mSignInButton;
+    @BindView(R2.id.emailEditTextView)
+    AppCompatEditText emailEdiTextView;
+
+    @BindView(R2.id.passwordEditTextView)
+    AppCompatEditText passwordEditTextView;
+
+    @BindView(R2.id.sign_in_button)
+    SignInButton mSignInButton;
 
     private GoogleApiClient mGoogleApiClient;
 
@@ -54,8 +65,10 @@ public class SignInActivity extends AppCompatActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.layout_chat_login);
+        ButterKnife.bind(this);
         // Assign fields
-        mSignInButton = (SignInButton) findViewById(R.id.sign_in_button);
+        //initViews();
+
 
         // Set click listeners
         mSignInButton.setOnClickListener(this);
