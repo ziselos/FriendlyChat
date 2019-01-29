@@ -21,6 +21,8 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.AppCompatImageView;
+import androidx.appcompat.widget.AppCompatTextView;
 import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -104,35 +106,6 @@ public class CustomMainActivity extends AppCompatActivity
     ImageView mAddMessageImageView;
 
     private LinearLayoutManager mLinearLayoutManager;
-
-
-    public static class CustomMessageViewHolder extends RecyclerView.ViewHolder {
-        LinearLayout chat_left_msg_layout;
-        TextView leftMessageTextView;
-        ImageView leftMessageImageView;
-        TextView leftMessengerTextView;
-        CircleImageView leftMessengerImageView;
-
-        LinearLayout chat_right_msg_layout;
-        TextView rightMessageTextView;
-        ImageView rightMessageImageView;
-        TextView rightMessengerTextView;
-        CircleImageView rightMessengerImageView;
-        public CustomMessageViewHolder(View v) {
-            super(v);
-            chat_left_msg_layout = (LinearLayout)itemView.findViewById(R.id.chat_left_msg_layout);
-            leftMessageTextView = (TextView) itemView.findViewById(R.id.leftMessageTextView);
-            leftMessageImageView = (ImageView) itemView.findViewById(R.id.leftMessageImageView);
-            leftMessengerTextView = (TextView) itemView.findViewById(R.id.leftMessengerTextView);
-            leftMessengerImageView = (CircleImageView) itemView.findViewById(R.id.leftMessengerImageView);
-
-            chat_right_msg_layout = (LinearLayout)itemView.findViewById(R.id.chat_right_msg_layout);
-            rightMessageTextView = (TextView) itemView.findViewById(R.id.rightMessageTextView);
-            rightMessageImageView = (ImageView) itemView.findViewById(R.id.rightMessageImageView);
-            rightMessengerTextView = (TextView) itemView.findViewById(R.id.rightMessengerTextView);
-            rightMessengerImageView = (CircleImageView) itemView.findViewById(R.id.rightMessengerImageView);
-        }
-    }
 
     private static final String TAG = "MainActivity";
     public static final String MESSAGES_CHILD = "messages";
@@ -663,4 +636,5 @@ public class CustomMainActivity extends AppCompatActivity
     private void causeCrash() {
         throw new NullPointerException("Fake null pointer exception");
     }
+
 }
