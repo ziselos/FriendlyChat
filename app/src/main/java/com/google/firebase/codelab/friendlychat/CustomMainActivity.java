@@ -15,18 +15,28 @@
  */
 package com.google.firebase.codelab.friendlychat;
 
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.preference.PreferenceManager;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.AppCompatImageView;
 import androidx.appcompat.widget.AppCompatTextView;
 import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
@@ -79,6 +89,10 @@ import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -87,6 +101,8 @@ import java.util.Map;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import de.hdodenhof.circleimageview.CircleImageView;
+
+import static android.provider.MediaStore.ACTION_IMAGE_CAPTURE;
 
 public class CustomMainActivity extends AppCompatActivity
         implements GoogleApiClient.OnConnectionFailedListener {
@@ -115,6 +131,7 @@ public class CustomMainActivity extends AppCompatActivity
     public static final String MESSAGES_CHILD = "messages";
     private static final int REQUEST_INVITE = 1;
     private static final int REQUEST_IMAGE = 2;
+    private static final int REQUEST_CAMERA_PHOTO = 3;
     private static final String LOADING_IMAGE_URL = "https://www.google.com/images/spin-32.gif";
     public static final int DEFAULT_MSG_LENGTH_LIMIT = 10;
     public static final String ANONYMOUS = "anonymous";
@@ -125,7 +142,9 @@ public class CustomMainActivity extends AppCompatActivity
     private SharedPreferences mSharedPreferences;
     private GoogleApiClient mGoogleApiClient;
     private static final String MESSAGE_URL = "http://friendlychat.firebase.google.com/message/";
-
+    private static final String IMAGE_DIRECTORY = "friendly-chat";
+    //File
+    private final static String PROFILE_IMAGE_FILENAME = "FriendlyChatDemo.jpg";
 
 
     // Firebase instance variables
@@ -194,8 +213,6 @@ public class CustomMainActivity extends AppCompatActivity
         };
 
 
-
-
         DatabaseReference messagesRef = mFirebaseDatabaseReference.child(MESSAGES_CHILD);
 
 
@@ -259,7 +276,8 @@ public class CustomMainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
                 // Select image for image message on click.
-                selectImage();
+                //selectImage();
+                showPhotoDialog();
             }
         });
     }
@@ -269,55 +287,79 @@ public class CustomMainActivity extends AppCompatActivity
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         Log.d(TAG, "onActivityResult: requestCode=" + requestCode + ", resultCode=" + resultCode);
+        switch (requestCode) {
+            case RESULT_CANCELED:
+                return;
+            case REQUEST_IMAGE:
+                performActionForSelectImage(resultCode, data);
+                break;
+            case REQUEST_CAMERA_PHOTO:
+                performActionForUseCamera(resultCode, data);
+                break;
+            case REQUEST_INVITE:
+                performActionForInvite(resultCode, data);
+                break;
+        }
+    }
 
-        if (requestCode == REQUEST_IMAGE) {
-            if (resultCode == RESULT_OK) {
-                if (data != null) {
-                    final Uri uri = data.getData();
-                    Log.d(TAG, "Uri: " + uri.toString());
+    private void performActionForInvite(int resultCode, Intent data) {
+        if (resultCode == RESULT_OK) {
+            // Check how many invitations were sent and log.
+            String[] ids = AppInviteInvitation.getInvitationIds(resultCode, data);
+            Log.d(TAG, "Invitations sent: " + ids.length);
+        } else {
+            // Sending failed or it was canceled, show failure message to the user
+            Log.d(TAG, "Failed to send invitation.");
+        }
+    }
 
-                    FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
-                            LOADING_IMAGE_URL);
-                    mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
-                            .setValue(tempMessage, new DatabaseReference.CompletionListener() {
-                                @Override
-                                public void onComplete(DatabaseError databaseError,
-                                                       DatabaseReference databaseReference) {
-                                    if (databaseError == null) {
-                                        String key = databaseReference.getKey();
-                                        StorageReference storageReference =
-                                                FirebaseStorage.getInstance()
-                                                        .getReference(mFirebaseUser.getUid())
-                                                        .child(key)
-                                                        .child(uri.getLastPathSegment());
 
-                                        putImageInStorage(storageReference, uri, key);
-                                    } else {
-                                        Log.w(TAG, "Unable to write message to database.",
-                                                databaseError.toException());
-                                    }
+    private void performActionForSelectImage(int resultCode, Intent data) {
+        if (resultCode == RESULT_OK) {
+            if (data != null) {
+                final Uri uri = data.getData();
+                Log.d(TAG, "Uri: " + uri.toString());
+
+                FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
+                        LOADING_IMAGE_URL);
+                mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
+                        .setValue(tempMessage, new DatabaseReference.CompletionListener() {
+                            @Override
+                            public void onComplete(DatabaseError databaseError,
+                                                   DatabaseReference databaseReference) {
+                                if (databaseError == null) {
+                                    String key = databaseReference.getKey();
+                                    StorageReference storageReference =
+                                            FirebaseStorage.getInstance()
+                                                    .getReference(mFirebaseUser.getUid())
+                                                    .child(key)
+                                                    .child(uri.getLastPathSegment());
+
+                                    putImageInStorage(storageReference, uri, key);
+                                } else {
+                                    Log.w(TAG, "Unable to write message to database.",
+                                            databaseError.toException());
                                 }
-                            });
-                }
-            }
-        } else if (requestCode == REQUEST_INVITE) {
-            if (resultCode == RESULT_OK) {
-                // Check how many invitations were sent and log.
-                String[] ids = AppInviteInvitation.getInvitationIds(resultCode, data);
-                Log.d(TAG, "Invitations sent: " + ids.length);
-            } else {
-                // Sending failed or it was canceled, show failure message to the user
-                Log.d(TAG, "Failed to send invitation.");
+                            }
+                        });
             }
         }
     }
 
+    private void performActionForUseCamera(int resultCode, Intent data) {
+        File currentFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
+        if (currentFile == null) {
+            return;
+        }
+        Bitmap raw = BitmapFactory.decodeFile(currentFile.getAbsolutePath());
+        //putImageInStorage();
+    }
 
     private void putImageInStorage(final StorageReference storageReference, Uri uri, final String key) {
         storageReference.putFile(uri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
             @Override
             public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception {
-                if (!task.isSuccessful()){
+                if (!task.isSuccessful()) {
                     throw task.getException();
                 }
                 return storageReference.getDownloadUrl();
@@ -325,7 +367,7 @@ public class CustomMainActivity extends AppCompatActivity
         }).addOnCompleteListener(new OnCompleteListener<Uri>() {
             @Override
             public void onComplete(@NonNull Task<Uri> task) {
-                if (task.isSuccessful()){
+                if (task.isSuccessful()) {
                     Uri downUri = task.getResult();
                     if (downUri != null) {
                         FriendlyMessage friendlyMessage =
@@ -334,7 +376,7 @@ public class CustomMainActivity extends AppCompatActivity
                         mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
                                 .setValue(friendlyMessage);
                     }
-                    Log.d(TAG, "onComplete: Url: "+ downUri.toString());
+                    Log.d(TAG, "onComplete: Url: " + downUri.toString());
                 }
                 Log.w(TAG, "Image upload task was not successful.",
                         task.getException());
@@ -360,7 +402,6 @@ public class CustomMainActivity extends AppCompatActivity
                     }
                 });
     }
-
 
 
     @Override
@@ -452,6 +493,38 @@ public class CustomMainActivity extends AppCompatActivity
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("image/*");
         startActivityForResult(intent, REQUEST_IMAGE);
+    }
+
+    private void takeImageFromCamera() {
+        String photoName = DateFormat.format("yyyy-MM-dd_hhmmss", new Date()).toString();
+        Intent intent = new Intent(ACTION_IMAGE_CAPTURE);
+        File profileImageFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
+        if (profileImageFile == null) {
+            return;
+        }
+        Uri photoURI = FileProvider.getUriForFile(CustomMainActivity.this, getApplicationContext().getPackageName() + ".my.package.name.provider", profileImageFile);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+        startActivityForResult(intent, REQUEST_CAMERA_PHOTO);
+    }
+
+    private void showPhotoDialog() {
+        AlertDialog.Builder pictureDialog = new AlertDialog.Builder(this);
+        pictureDialog.setTitle("Select Action");
+        String[] pictureDialogItems = {
+                "Select photo from gallery",
+                "Capture photo from camera"};
+        pictureDialog.setItems(pictureDialogItems,
+                (dialog, which) -> {
+                    switch (which) {
+                        case 0:
+                            selectImage();
+                            break;
+                        case 1:
+                            takeImageFromCamera();
+                            break;
+                    }
+                });
+        pictureDialog.show();
     }
 
     // Index messages
@@ -561,6 +634,28 @@ public class CustomMainActivity extends AppCompatActivity
 
     private void causeCrash() {
         throw new NullPointerException("Fake null pointer exception");
+    }
+
+    public static File getFileFromAppExternalDirectory(String filename) {
+        if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+            return null;
+        }
+
+
+        File root = null;
+
+        try {
+            root = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString(), "MyJobNow");
+            root.mkdirs();
+        } catch (Exception e) {
+            Log.e(TAG, e.toString());
+        }
+
+        if (root == null) {
+            return null;
+        }
+
+        return new File(root, filename);
     }
 
 }
