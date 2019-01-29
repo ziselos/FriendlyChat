@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
+import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -77,6 +78,8 @@ import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -132,6 +135,8 @@ public class CustomMainActivity extends AppCompatActivity
     private FirebaseRecyclerAdapter<FriendlyMessage, CustomMessageViewHolder>
             mFirebaseAdapter;
 
+    private ChatFirebaseAdapter chatFirebaseAdapter;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -173,7 +178,7 @@ public class CustomMainActivity extends AppCompatActivity
         mLinearLayoutManager.setStackFromEnd(true);
         mMessageRecyclerView.setLayoutManager(mLinearLayoutManager);
 
-        //mProgressBar.setVisibility(ProgressBar.INVISIBLE);
+        mProgressBar.setVisibility(ProgressBar.INVISIBLE);
         // New child entries
         mFirebaseDatabaseReference = FirebaseDatabase.getInstance().getReference();
         SnapshotParser<FriendlyMessage> parser = new SnapshotParser<FriendlyMessage>() {
@@ -187,134 +192,23 @@ public class CustomMainActivity extends AppCompatActivity
             }
         };
 
+
+
+
         DatabaseReference messagesRef = mFirebaseDatabaseReference.child(MESSAGES_CHILD);
+
+
         FirebaseRecyclerOptions<FriendlyMessage> options =
                 new FirebaseRecyclerOptions.Builder<FriendlyMessage>()
                         .setQuery(messagesRef, parser)
                         .build();
-        mFirebaseAdapter = new FirebaseRecyclerAdapter<FriendlyMessage, CustomMessageViewHolder>(options) {
-            @Override
-            public CustomMessageViewHolder onCreateViewHolder(ViewGroup viewGroup, int i) {
-                LayoutInflater inflater = LayoutInflater.from(viewGroup.getContext());
-                return new CustomMessageViewHolder(inflater.inflate(R.layout.custom_item_message, viewGroup, false));
-            }
 
-            @Override
-            protected void onBindViewHolder(final CustomMessageViewHolder viewHolder,
-                                            int position,
-                                            FriendlyMessage friendlyMessage) {
-                mProgressBar.setVisibility(ProgressBar.INVISIBLE);
-                if (friendlyMessage.getName().equals(mUsername)) {
-                    //show received message in left side
-                    viewHolder.chat_left_msg_layout.setVisibility(View.VISIBLE);
-                    viewHolder.chat_right_msg_layout.setVisibility(View.GONE);
-                    if (friendlyMessage.getText() != null) {
-                        viewHolder.leftMessageTextView.setText(friendlyMessage.getText());
-                        viewHolder.leftMessageTextView.setVisibility(TextView.VISIBLE);
-                        viewHolder.leftMessageImageView.setVisibility(ImageView.GONE);
-                    } else if (friendlyMessage.getImageUrl() != null) {
-                        String imageUrl = friendlyMessage.getImageUrl();
-                        if (imageUrl.startsWith("gs://")) {
-                            StorageReference storageReference = FirebaseStorage.getInstance()
-                                    .getReferenceFromUrl(imageUrl);
-                            storageReference.getDownloadUrl().addOnCompleteListener(
-                                    new OnCompleteListener<Uri>() {
-                                        @Override
-                                        public void onComplete(@NonNull Task<Uri> task) {
-                                            if (task.isSuccessful()) {
-                                                String downloadUrl = task.getResult().toString();
-                                                Glide.with(viewHolder.leftMessageImageView.getContext())
-                                                        .load(downloadUrl)
-                                                        .into(viewHolder.leftMessageImageView);
-                                            } else {
-                                                Log.w(TAG, "Getting download url was not `successful.",
-                                                        task.getException());
-                                            }
-                                        }
-                                    });
-                        } else {
-                            Glide.with(viewHolder.leftMessageImageView.getContext())
-                                    .load(friendlyMessage.getImageUrl())
-                                    .into(viewHolder.leftMessageImageView);
-                        }
-                        viewHolder.leftMessageImageView.setVisibility(ImageView.VISIBLE);
-                        viewHolder.leftMessageTextView.setVisibility(TextView.GONE);
-                    }
-
-                    viewHolder.leftMessengerTextView.setText(friendlyMessage.getName());
-                    if (friendlyMessage.getPhotoUrl() == null) {
-                        viewHolder.leftMessengerImageView.setImageDrawable(ContextCompat.getDrawable(CustomMainActivity.this,
-                                R.drawable.ic_account_circle_black_36dp));
-                    } else {
-                        Glide.with(CustomMainActivity.this)
-                                .load(friendlyMessage.getPhotoUrl())
-                                .into(viewHolder.leftMessengerImageView);
-                    }
-                } else {
-                    //show received message in write side
-                    viewHolder.chat_left_msg_layout.setVisibility(View.GONE);
-                    viewHolder.chat_right_msg_layout.setVisibility(View.VISIBLE);
-                    if (friendlyMessage.getText() != null) {
-                        viewHolder.rightMessageTextView.setText(friendlyMessage.getText());
-                        viewHolder.rightMessageTextView.setVisibility(TextView.VISIBLE);
-                        viewHolder.rightMessageImageView.setVisibility(ImageView.GONE);
-                    } else if (friendlyMessage.getImageUrl() != null) {
-                        String imageUrl = friendlyMessage.getImageUrl();
-                        if (imageUrl.startsWith("gs://")) {
-                            StorageReference storageReference = FirebaseStorage.getInstance()
-                                    .getReferenceFromUrl(imageUrl);
-                            storageReference.getDownloadUrl().addOnCompleteListener(
-                                    new OnCompleteListener<Uri>() {
-                                        @Override
-                                        public void onComplete(@NonNull Task<Uri> task) {
-                                            if (task.isSuccessful()) {
-                                                String downloadUrl = task.getResult().toString();
-                                                Glide.with(viewHolder.rightMessageImageView.getContext())
-                                                        .load(downloadUrl)
-                                                        .into(viewHolder.rightMessageImageView);
-                                            } else {
-                                                Log.w(TAG, "Getting download url was not successful.",
-                                                        task.getException());
-                                            }
-                                        }
-                                    });
-                        } else {
-                            Glide.with(viewHolder.rightMessageImageView.getContext())
-                                    .load(friendlyMessage.getImageUrl())
-                                    .into(viewHolder.rightMessageImageView);
-                        }
-                        viewHolder.rightMessageImageView.setVisibility(ImageView.VISIBLE);
-                        viewHolder.rightMessageTextView.setVisibility(TextView.GONE);
-                    }
-
-                    viewHolder.rightMessengerTextView.setText(friendlyMessage.getName());
-                    if (friendlyMessage.getPhotoUrl() == null) {
-                        viewHolder.rightMessengerImageView.setImageDrawable(ContextCompat.getDrawable(CustomMainActivity.this,
-                                R.drawable.ic_account_circle_black_36dp));
-                    } else {
-                        Glide.with(CustomMainActivity.this)
-                                .load(friendlyMessage.getPhotoUrl())
-                                .into(viewHolder.rightMessengerImageView);
-                    }
-
-                }
-
-                if (friendlyMessage.getText() != null) {
-                    // write this message to the on-device index
-                    FirebaseAppIndex.getInstance()
-                            .update(getMessageIndexable(friendlyMessage));
-                }
-
-                // log a view action on it
-                FirebaseUserActions.getInstance().end(getMessageViewAction(friendlyMessage));
-            }
-        };
-
-        mFirebaseAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+        chatFirebaseAdapter = new ChatFirebaseAdapter(options, mUsername, this);
+        chatFirebaseAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
             @Override
             public void onItemRangeInserted(int positionStart, int itemCount) {
                 super.onItemRangeInserted(positionStart, itemCount);
-                int friendlyMessageCount = mFirebaseAdapter.getItemCount();
+                int friendlyMessageCount = chatFirebaseAdapter.getItemCount();
                 int lastVisiblePosition =
                         mLinearLayoutManager.findLastCompletelyVisibleItemPosition();
                 // If the recycler view is initially being loaded or the
@@ -328,7 +222,7 @@ public class CustomMainActivity extends AppCompatActivity
             }
         });
 
-        mMessageRecyclerView.setAdapter(mFirebaseAdapter);
+        mMessageRecyclerView.setAdapter(chatFirebaseAdapter);
 
 
         mMessageEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(mSharedPreferences
@@ -437,6 +331,8 @@ public class CustomMainActivity extends AppCompatActivity
                 });
     }
 
+
+
     @Override
     public void onStart() {
         super.onStart();
@@ -449,14 +345,14 @@ public class CustomMainActivity extends AppCompatActivity
         if (mAdView != null) {
             mAdView.pause();
         }
-        mFirebaseAdapter.stopListening();
+        chatFirebaseAdapter.stopListening();
         super.onPause();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mFirebaseAdapter.startListening();
+        chatFirebaseAdapter.startListening();
         if (mAdView != null) {
             mAdView.resume();
         }

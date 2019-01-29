@@ -9,7 +9,7 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import de.hdodenhof.circleimageview.CircleImageView;
 
-public class CustomMessageViewHolder extends RecyclerView.ViewHolder {
+class CustomMessageViewHolder extends RecyclerView.ViewHolder {
 
     @BindView(R2.id.chat_left_msg_layout)
     LinearLayout chat_left_msg_layout;
