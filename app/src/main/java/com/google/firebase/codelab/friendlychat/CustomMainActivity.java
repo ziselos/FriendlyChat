@@ -56,6 +56,7 @@ import com.google.android.gms.appinvite.AppInviteInvitation;
 import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -311,7 +312,36 @@ public class CustomMainActivity extends AppCompatActivity
         }
     }
 
+
     private void putImageInStorage(final StorageReference storageReference, Uri uri, final String key) {
+        storageReference.putFile(uri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
+            @Override
+            public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception {
+                if (!task.isSuccessful()){
+                    throw task.getException();
+                }
+                return storageReference.getDownloadUrl();
+            }
+        }).addOnCompleteListener(new OnCompleteListener<Uri>() {
+            @Override
+            public void onComplete(@NonNull Task<Uri> task) {
+                if (task.isSuccessful()){
+                    Uri downUri = task.getResult();
+                    if (downUri != null) {
+                        FriendlyMessage friendlyMessage =
+                                new FriendlyMessage(null, mUsername, mPhotoUrl,
+                                        downUri.toString());
+                        mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
+                                .setValue(friendlyMessage);
+                    }
+                    Log.d(TAG, "onComplete: Url: "+ downUri.toString());
+                }
+                Log.w(TAG, "Image upload task was not successful.",
+                        task.getException());
+            }
+        });
+
+
         storageReference.putFile(uri).addOnCompleteListener(CustomMainActivity.this,
                 new OnCompleteListener<UploadTask.TaskSnapshot>() {
                     @Override
