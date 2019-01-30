@@ -142,7 +142,6 @@ public class CustomMainActivity extends AppCompatActivity
     private SharedPreferences mSharedPreferences;
     private GoogleApiClient mGoogleApiClient;
     private static final String MESSAGE_URL = "http://friendlychat.firebase.google.com/message/";
-    private static final String IMAGE_DIRECTORY = "friendly-chat";
     //File
     private final static String PROFILE_IMAGE_FILENAME = "FriendlyChatDemo.jpg";
 
@@ -352,7 +351,6 @@ public class CustomMainActivity extends AppCompatActivity
             return;
         }
         Bitmap raw = BitmapFactory.decodeFile(currentFile.getAbsolutePath());
-        //putImageInStorage();
     }
 
     private void putImageInStorage(final StorageReference storageReference, Uri uri, final String key) {
