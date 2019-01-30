@@ -15,10 +15,12 @@
  */
 package com.google.firebase.codelab.friendlychat;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.MediaScannerConnection;
@@ -30,6 +32,7 @@ import android.preference.PreferenceManager;
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.AppCompatImageView;
 import androidx.appcompat.widget.AppCompatTextView;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
@@ -102,10 +105,19 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import de.hdodenhof.circleimageview.CircleImageView;
 
+import static android.Manifest.permission.CAMERA;
 import static android.provider.MediaStore.ACTION_IMAGE_CAPTURE;
 
 public class CustomMainActivity extends AppCompatActivity
         implements GoogleApiClient.OnConnectionFailedListener {
+
+    // Storage Permissions
+    private static final int REQUEST_EXTERNAL_STORAGE = 1;
+    private static final int REQUEST_CAMERA = 2;
+    private static String[] PERMISSIONS_STORAGE = {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
 
     @BindView(R2.id.adView)
     AdView mAdView;
@@ -143,6 +155,7 @@ public class CustomMainActivity extends AppCompatActivity
     private GoogleApiClient mGoogleApiClient;
     private static final String MESSAGE_URL = "http://friendlychat.firebase.google.com/message/";
     //File
+    private File filePathImageCamera;
     private final static String PROFILE_IMAGE_FILENAME = "FriendlyChatDemo.jpg";
 
 
@@ -346,11 +359,10 @@ public class CustomMainActivity extends AppCompatActivity
     }
 
     private void performActionForUseCamera(int resultCode, Intent data) {
-        File currentFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
-        if (currentFile == null) {
-            return;
+        if (resultCode == RESULT_OK) {
+            if (filePathImageCamera != null && filePathImageCamera.exists()) {
+            }
         }
-        Bitmap raw = BitmapFactory.decodeFile(currentFile.getAbsolutePath());
     }
 
     private void putImageInStorage(final StorageReference storageReference, Uri uri, final String key) {
@@ -495,12 +507,11 @@ public class CustomMainActivity extends AppCompatActivity
 
     private void takeImageFromCamera() {
         String photoName = DateFormat.format("yyyy-MM-dd_hhmmss", new Date()).toString();
-        Intent intent = new Intent(ACTION_IMAGE_CAPTURE);
-        File profileImageFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
-        if (profileImageFile == null) {
-            return;
-        }
-        Uri photoURI = FileProvider.getUriForFile(CustomMainActivity.this, getApplicationContext().getPackageName() + ".my.package.name.provider", profileImageFile);
+        filePathImageCamera = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), photoName +"camera.jpg");
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        Uri photoURI = FileProvider.getUriForFile(CustomMainActivity.this,
+                BuildConfig.APPLICATION_ID + ".provider",
+                filePathImageCamera);
         intent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
         startActivityForResult(intent, REQUEST_CAMERA_PHOTO);
     }
@@ -518,7 +529,7 @@ public class CustomMainActivity extends AppCompatActivity
                             selectImage();
                             break;
                         case 1:
-                            takeImageFromCamera();
+                            verifyStoragePermissions();
                             break;
                     }
                 });
@@ -654,6 +665,48 @@ public class CustomMainActivity extends AppCompatActivity
         }
 
         return new File(root, filename);
+    }
+
+    public void verifyStoragePermissions() {
+
+        int permission = ActivityCompat.checkSelfPermission(CustomMainActivity.this, Manifest.permission.CAMERA);
+
+        if (permission != PackageManager.PERMISSION_GRANTED) {
+            // We don't have permission so prompt the user
+            ActivityCompat.requestPermissions(
+                    CustomMainActivity.this,
+                    new String[]{Manifest.permission.CAMERA},
+                    REQUEST_CAMERA);
+        } else {
+
+            // Check if we have write permission
+            permission = ActivityCompat.checkSelfPermission(CustomMainActivity.this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+
+            if (permission != PackageManager.PERMISSION_GRANTED) {
+                // We don't have permission so prompt the user
+                ActivityCompat.requestPermissions(
+                        CustomMainActivity.this,
+                        PERMISSIONS_STORAGE,
+                        REQUEST_EXTERNAL_STORAGE);
+            } else {
+                // we already have permission, lets go ahead and call camera intent
+                takeImageFromCamera();
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        switch (requestCode){
+            case REQUEST_EXTERNAL_STORAGE:
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // permission was granted
+                    takeImageFromCamera();
+                }
+                break;
+        }
     }
 
 }
