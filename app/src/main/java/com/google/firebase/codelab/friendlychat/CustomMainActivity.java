@@ -360,10 +360,35 @@ public class CustomMainActivity extends AppCompatActivity
 
     private void performActionForUseCamera(int resultCode, Intent data) {
         if (resultCode == RESULT_OK) {
-            if (filePathImageCamera != null && filePathImageCamera.exists()) {
-            }
+                File currentFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
+                if (currentFile == null) {
+                    return;
+                }
+                FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
+                        LOADING_IMAGE_URL);
+                mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
+                        .setValue(tempMessage, new DatabaseReference.CompletionListener() {
+                            @Override
+                            public void onComplete(DatabaseError databaseError,
+                                                   DatabaseReference databaseReference) {
+                                if (databaseError == null) {
+                                    String key = databaseReference.getKey();
+                                    StorageReference storageReference =
+                                            FirebaseStorage.getInstance()
+                                                    .getReference(mFirebaseUser.getUid())
+                                                    .child(key)
+                                            .child(currentFile.getName());
+
+                                    putImageInStorage(storageReference, Uri.fromFile(currentFile), key);
+                                } else {
+                                    Log.w(TAG, "Unable to write message to database.",
+                                            databaseError.toException());
+                                }
+                            }
+                        });
         }
     }
+
 
     private void putImageInStorage(final StorageReference storageReference, Uri uri, final String key) {
         storageReference.putFile(uri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
@@ -506,13 +531,15 @@ public class CustomMainActivity extends AppCompatActivity
     }
 
     private void takeImageFromCamera() {
-        String photoName = DateFormat.format("yyyy-MM-dd_hhmmss", new Date()).toString();
-        filePathImageCamera = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), photoName +"camera.jpg");
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        Uri photoURI = FileProvider.getUriForFile(CustomMainActivity.this,
-                BuildConfig.APPLICATION_ID + ".provider",
-                filePathImageCamera);
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+        String photoName = DateFormat.format("yyyy-MM-dd_hhmmss", new Date()).toString();
+        File capturedImageFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
+        if (capturedImageFile == null) {
+            return;
+        }
+
+        Uri photoURI = FileProvider.getUriForFile(CustomMainActivity.this, getApplicationContext().getPackageName() + ".my.package.name.provider", capturedImageFile);
+        intent = intent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
         startActivityForResult(intent, REQUEST_CAMERA_PHOTO);
     }
 
@@ -697,7 +724,7 @@ public class CustomMainActivity extends AppCompatActivity
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        switch (requestCode){
+        switch (requestCode) {
             case REQUEST_EXTERNAL_STORAGE:
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0
