@@ -17,23 +17,16 @@ package com.google.firebase.codelab.friendlychat;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.preference.PreferenceManager;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.widget.AppCompatImageView;
-import androidx.appcompat.widget.AppCompatTextView;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -45,21 +38,16 @@ import android.text.InputFilter;
 import android.text.TextWatcher;
 import android.text.format.DateFormat;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
-import com.bumptech.glide.Glide;
 import com.firebase.ui.database.FirebaseRecyclerAdapter;
 import com.firebase.ui.database.FirebaseRecyclerOptions;
 import com.firebase.ui.database.SnapshotParser;
@@ -75,8 +63,6 @@ import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.appindexing.Action;
-import com.google.firebase.appindexing.FirebaseAppIndex;
-import com.google.firebase.appindexing.FirebaseUserActions;
 import com.google.firebase.appindexing.Indexable;
 import com.google.firebase.appindexing.builders.Indexables;
 import com.google.firebase.appindexing.builders.PersonBuilder;
@@ -92,21 +78,13 @@ import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
-import de.hdodenhof.circleimageview.CircleImageView;
-
-import static android.Manifest.permission.CAMERA;
-import static android.provider.MediaStore.ACTION_IMAGE_CAPTURE;
 
 public class CustomMainActivity extends AppCompatActivity
         implements GoogleApiClient.OnConnectionFailedListener {
@@ -360,32 +338,32 @@ public class CustomMainActivity extends AppCompatActivity
 
     private void performActionForUseCamera(int resultCode, Intent data) {
         if (resultCode == RESULT_OK) {
-                File currentFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
-                if (currentFile == null) {
-                    return;
-                }
-                FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
-                        LOADING_IMAGE_URL);
-                mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
-                        .setValue(tempMessage, new DatabaseReference.CompletionListener() {
-                            @Override
-                            public void onComplete(DatabaseError databaseError,
-                                                   DatabaseReference databaseReference) {
-                                if (databaseError == null) {
-                                    String key = databaseReference.getKey();
-                                    StorageReference storageReference =
-                                            FirebaseStorage.getInstance()
-                                                    .getReference(mFirebaseUser.getUid())
-                                                    .child(key)
-                                            .child(currentFile.getName());
+            File currentFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
+            if (currentFile == null) {
+                return;
+            }
+            FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
+                    LOADING_IMAGE_URL);
+            mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
+                    .setValue(tempMessage, new DatabaseReference.CompletionListener() {
+                        @Override
+                        public void onComplete(DatabaseError databaseError,
+                                               DatabaseReference databaseReference) {
+                            if (databaseError == null) {
+                                String key = databaseReference.getKey();
+                                StorageReference storageReference =
+                                        FirebaseStorage.getInstance()
+                                                .getReference(mFirebaseUser.getUid())
+                                                .child(key)
+                                                .child(currentFile.getName());
 
-                                    putImageInStorage(storageReference, Uri.fromFile(currentFile), key);
-                                } else {
-                                    Log.w(TAG, "Unable to write message to database.",
-                                            databaseError.toException());
-                                }
+                                putImageInStorage(storageReference, Uri.fromFile(currentFile), key);
+                            } else {
+                                Log.w(TAG, "Unable to write message to database.",
+                                        databaseError.toException());
                             }
-                        });
+                        }
+                    });
         }
     }
 
@@ -530,6 +508,13 @@ public class CustomMainActivity extends AppCompatActivity
         startActivityForResult(intent, REQUEST_IMAGE);
     }
 
+    private void selectFile() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/pdf");
+        startActivityForResult(intent, REQUEST_IMAGE);
+    }
+
     private void takeImageFromCamera() {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         String photoName = DateFormat.format("yyyy-MM-dd_hhmmss", new Date()).toString();
@@ -548,7 +533,8 @@ public class CustomMainActivity extends AppCompatActivity
         pictureDialog.setTitle("Select Action");
         String[] pictureDialogItems = {
                 "Select photo from gallery",
-                "Capture photo from camera"};
+                "Capture photo from camera",
+                "Select file"};
         pictureDialog.setItems(pictureDialogItems,
                 (dialog, which) -> {
                     switch (which) {
@@ -558,6 +544,8 @@ public class CustomMainActivity extends AppCompatActivity
                         case 1:
                             verifyStoragePermissions();
                             break;
+                        case 2:
+                            selectFile();
                     }
                 });
         pictureDialog.show();
@@ -681,7 +669,7 @@ public class CustomMainActivity extends AppCompatActivity
         File root = null;
 
         try {
-            root = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString(), "MyJobNow");
+            root = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString(), "FriendlyChat");
             root.mkdirs();
         } catch (Exception e) {
             Log.e(TAG, e.toString());
