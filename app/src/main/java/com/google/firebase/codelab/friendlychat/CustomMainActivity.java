@@ -68,6 +68,8 @@ import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.File;
 import java.util.Date;
 import java.util.HashMap;
@@ -210,15 +212,12 @@ public class CustomMainActivity extends AppCompatActivity
         mProgressBar.setVisibility(ProgressBar.INVISIBLE);
         // New child entries
         mFirebaseDatabaseReference = FirebaseDatabase.getInstance().getReference();
-        SnapshotParser<FriendlyMessage> parser = new SnapshotParser<FriendlyMessage>() {
-            @Override
-            public FriendlyMessage parseSnapshot(DataSnapshot dataSnapshot) {
-                FriendlyMessage friendlyMessage = dataSnapshot.getValue(FriendlyMessage.class);
-                if (friendlyMessage != null) {
-                    friendlyMessage.setId(dataSnapshot.getKey());
-                }
-                return friendlyMessage;
+        SnapshotParser<FriendlyMessage> parser = dataSnapshot -> {
+            FriendlyMessage friendlyMessage = dataSnapshot.getValue(FriendlyMessage.class);
+            if (friendlyMessage != null) {
+                friendlyMessage.setId(dataSnapshot.getKey());
             }
+            return friendlyMessage;
         };
 
 
@@ -305,25 +304,21 @@ public class CustomMainActivity extends AppCompatActivity
                 Timber.d(uri.toString());
 
                 FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
-                        LOADING_IMAGE_URL, null);
+                        null, LOADING_IMAGE_URL);
                 mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
-                        .setValue(tempMessage, new DatabaseReference.CompletionListener() {
-                            @Override
-                            public void onComplete(DatabaseError databaseError,
-                                                   DatabaseReference databaseReference) {
-                                if (databaseError == null) {
-                                    String key = databaseReference.getKey();
-                                    StorageReference storageReference =
-                                            FirebaseStorage.getInstance()
-                                                    .getReference(mFirebaseUser.getUid())
-                                                    .child(key)
-                                                    .child(uri.getLastPathSegment());
+                        .setValue(tempMessage, (databaseError, databaseReference) -> {
+                            if (databaseError == null) {
+                                String key = databaseReference.getKey();
+                                StorageReference storageReference =
+                                        FirebaseStorage.getInstance()
+                                                .getReference(mFirebaseUser.getUid())
+                                                .child(key)
+                                                .child(uri.getLastPathSegment());
 
-                                    putFileInStorage(storageReference, uri, key);
-                                } else {
-                                    Log.w(TAG, "Unable to write message to database.",
-                                            databaseError.toException());
-                                }
+                                putFileInStorage(storageReference, uri, key);
+                            } else {
+                                Timber.w("Unable to write message to database. %s",
+                                        databaseError);
                             }
                         });
             }
@@ -335,10 +330,10 @@ public class CustomMainActivity extends AppCompatActivity
         if (resultCode == RESULT_OK) {
             // Check how many invitations were sent and log.
             String[] ids = AppInviteInvitation.getInvitationIds(resultCode, data);
-            Log.d(TAG, "Invitations sent: " + ids.length);
+            Timber.d("Invitations sent: %d ",  ids.length);
         } else {
             // Sending failed or it was canceled, show failure message to the user
-            Log.d(TAG, "Failed to send invitation.");
+            Timber.d("Failed to send invitation.");
         }
     }
 
@@ -352,23 +347,18 @@ public class CustomMainActivity extends AppCompatActivity
                 FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
                         LOADING_IMAGE_URL, null);
                 mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
-                        .setValue(tempMessage, new DatabaseReference.CompletionListener() {
-                            @Override
-                            public void onComplete(DatabaseError databaseError,
-                                                   DatabaseReference databaseReference) {
-                                if (databaseError == null) {
-                                    String key = databaseReference.getKey();
-                                    StorageReference storageReference =
-                                            FirebaseStorage.getInstance()
-                                                    .getReference(mFirebaseUser.getUid())
-                                                    .child(key)
-                                                    .child(uri.getLastPathSegment());
+                        .setValue(tempMessage, (databaseError, databaseReference) -> {
+                            if (databaseError == null) {
+                                String key = databaseReference.getKey();
+                                StorageReference storageReference =
+                                        FirebaseStorage.getInstance()
+                                                .getReference(mFirebaseUser.getUid())
+                                                .child(key)
+                                                .child(uri.getLastPathSegment());
 
-                                    putImageInStorage(storageReference, uri, key);
-                                } else {
-                                    Log.w(TAG, "Unable to write message to database.",
-                                            databaseError.toException());
-                                }
+                                putImageInStorage(storageReference, uri, key);
+                            } else {
+                                Timber.w(databaseError.toException());
                             }
                         });
             }
@@ -384,22 +374,18 @@ public class CustomMainActivity extends AppCompatActivity
             FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
                     LOADING_IMAGE_URL, null);
             mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
-                    .setValue(tempMessage, new DatabaseReference.CompletionListener() {
-                        @Override
-                        public void onComplete(DatabaseError databaseError,
-                                               DatabaseReference databaseReference) {
-                            if (databaseError == null) {
-                                String key = databaseReference.getKey();
-                                StorageReference storageReference =
-                                        FirebaseStorage.getInstance()
-                                                .getReference(mFirebaseUser.getUid())
-                                                .child(key)
-                                                .child(currentFile.getName());
+                    .setValue(tempMessage, (databaseError, databaseReference) -> {
+                        if (databaseError == null) {
+                            String key = databaseReference.getKey();
+                            StorageReference storageReference =
+                                    FirebaseStorage.getInstance()
+                                            .getReference(mFirebaseUser.getUid())
+                                            .child(key)
+                                            .child(currentFile.getName());
 
-                                putImageInStorage(storageReference, Uri.fromFile(currentFile), key);
-                            } else {
-                                Timber.d(databaseError.toException());
-                            }
+                            putImageInStorage(storageReference, Uri.fromFile(currentFile), key);
+                        } else {
+                            Timber.d(databaseError.toException());
                         }
                     });
         }
@@ -407,93 +393,75 @@ public class CustomMainActivity extends AppCompatActivity
 
 
     private void putImageInStorage(final StorageReference storageReference, Uri uri, final String key) {
-        storageReference.putFile(uri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
-            @Override
-            public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception {
-                if (!task.isSuccessful()) {
-                    throw task.getException();
-                }
-                return storageReference.getDownloadUrl();
+        storageReference.putFile(uri).continueWithTask(task -> {
+            if (!task.isSuccessful()) {
+                throw task.getException();
             }
-        }).addOnCompleteListener(new OnCompleteListener<Uri>() {
-            @Override
-            public void onComplete(@NonNull Task<Uri> task) {
-                if (task.isSuccessful()) {
-                    Uri downUri = task.getResult();
-                    if (downUri != null) {
-                        FriendlyMessage friendlyMessage =
-                                new FriendlyMessage(null, mUsername, mPhotoUrl,
-                                        downUri.toString(), null);
-                        mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
-                                .setValue(friendlyMessage);
-                    }
-                    Timber.d(downUri.toString());
+            return storageReference.getDownloadUrl();
+        }).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                Uri downUri = task.getResult();
+                if (downUri != null) {
+                    FriendlyMessage friendlyMessage =
+                            new FriendlyMessage(null, mUsername, mPhotoUrl,
+                                    downUri.toString(), null);
+                    mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
+                            .setValue(friendlyMessage);
                 }
-                Timber.d(task.getException());
+                Timber.d(downUri.toString());
             }
+            Timber.d(task.getException());
         });
 
 
         storageReference.putFile(uri).addOnCompleteListener(CustomMainActivity.this,
-                new OnCompleteListener<UploadTask.TaskSnapshot>() {
-                    @Override
-                    public void onComplete(@NonNull Task<UploadTask.TaskSnapshot> task) {
-                        if (task.isSuccessful()) {
-                            FriendlyMessage friendlyMessage =
-                                    new FriendlyMessage(null, mUsername, mPhotoUrl,
-                                            storageReference.getDownloadUrl()
-                                                    .toString(), null);
-                            mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
-                                    .setValue(friendlyMessage);
-                        } else {
-                            Timber.d(task.getException());
-                        }
+                task -> {
+                    if (task.isSuccessful()) {
+                        FriendlyMessage friendlyMessage =
+                                new FriendlyMessage(null, mUsername, mPhotoUrl,
+                                        storageReference.getDownloadUrl()
+                                                .toString(), null);
+                        mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
+                                .setValue(friendlyMessage);
+                    } else {
+                        Timber.d(task.getException());
                     }
                 });
     }
 
     private void putFileInStorage(final StorageReference storageReference, Uri uri, final String key) {
-        storageReference.putFile(uri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
-            @Override
-            public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception {
-                if (!task.isSuccessful()) {
-                    throw task.getException();
-                }
-                return storageReference.getDownloadUrl();
+        storageReference.putFile(uri).continueWithTask(task -> {
+            if (!task.isSuccessful()) {
+                throw task.getException();
             }
-        }).addOnCompleteListener(new OnCompleteListener<Uri>() {
-            @Override
-            public void onComplete(@NonNull Task<Uri> task) {
-                if (task.isSuccessful()) {
-                    Uri downUri = task.getResult();
-                    if (downUri != null) {
-                        FriendlyMessage friendlyMessage =
-                                new FriendlyMessage(null, mUsername, mPhotoUrl,
-                                        null, downUri.toString());
-                        mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
-                                .setValue(friendlyMessage);
-                    }
-                    Timber.d(downUri.toString());
+            return storageReference.getDownloadUrl();
+        }).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                Uri downUri = task.getResult();
+                if (downUri != null) {
+                    FriendlyMessage friendlyMessage =
+                            new FriendlyMessage(null, mUsername, mPhotoUrl,
+                                    null, downUri.toString());
+                    mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
+                            .setValue(friendlyMessage);
                 }
-                Timber.d(task.getException());
+                Timber.d(downUri.toString());
             }
+            Timber.d(task.getException());
         });
 
 
         storageReference.putFile(uri).addOnCompleteListener(CustomMainActivity.this,
-                new OnCompleteListener<UploadTask.TaskSnapshot>() {
-                    @Override
-                    public void onComplete(@NonNull Task<UploadTask.TaskSnapshot> task) {
-                        if (task.isSuccessful()) {
-                            FriendlyMessage friendlyMessage =
-                                    new FriendlyMessage(null, mUsername, mPhotoUrl,
-                                            null, storageReference.getDownloadUrl()
-                                            .toString());
-                            mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
-                                    .setValue(friendlyMessage);
-                        } else {
-                            Timber.d(task.getException());
-                        }
+                task -> {
+                    if (task.isSuccessful()) {
+                        FriendlyMessage friendlyMessage =
+                                new FriendlyMessage(null, mUsername, mPhotoUrl,
+                                        null, storageReference.getDownloadUrl()
+                                        .toString());
+                        mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
+                                .setValue(friendlyMessage);
+                    } else {
+                        Timber.d(task.getException());
                     }
                 });
     }

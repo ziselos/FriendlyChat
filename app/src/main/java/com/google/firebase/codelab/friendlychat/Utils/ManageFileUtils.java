@@ -1,28 +1,14 @@
 package com.google.firebase.codelab.friendlychat.Utils;
 
-import android.net.Uri;
 import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Log;
-
-import com.google.android.gms.tasks.Continuation;
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.codelab.friendlychat.CustomMainActivity;
-import com.google.firebase.codelab.friendlychat.FriendlyMessage;
-import com.google.firebase.storage.StorageReference;
-import com.google.firebase.storage.UploadTask;
-
 import java.io.File;
 import java.io.IOException;
-
-import androidx.annotation.NonNull;
 import okhttp3.ResponseBody;
 import okio.BufferedSink;
 import okio.Okio;
 import timber.log.Timber;
-
-import static com.google.firebase.codelab.friendlychat.CustomMainActivity.MESSAGES_CHILD;
 
 public class ManageFileUtils {
 
