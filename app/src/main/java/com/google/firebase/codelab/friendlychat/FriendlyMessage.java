@@ -22,16 +22,18 @@ public class FriendlyMessage {
     private String name;
     private String photoUrl;
     private String imageUrl;
+    private String fileUrl;
     private String type;
 
     public FriendlyMessage() {
     }
 
-    public FriendlyMessage(String text, String name, String photoUrl, String imageUrl) {
+    public FriendlyMessage(String text, String name, String photoUrl, String imageUrl, String fileUrl) {
         this.text = text;
         this.name = name;
         this.photoUrl = photoUrl;
         this.imageUrl = imageUrl;
+        this.fileUrl = fileUrl;
         this.type = type;
     }
 
@@ -73,5 +75,25 @@ public class FriendlyMessage {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getFileUrl() {
+        return fileUrl;
+    }
+
+    public void setFileUrl(String fileUrl) {
+        this.fileUrl = fileUrl;
+    }
+
+    public boolean hasText() {
+        return this.getText() != null;
+    }
+
+    public boolean hasImage() {
+        return this.getImageUrl() != null;
+    }
+
+    public boolean hasFile() {
+        return this.getFileUrl() != null;
     }
 }

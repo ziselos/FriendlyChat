@@ -1,21 +1,8 @@
-/**
- * Copyright Google Inc. All Rights Reserved.
- * <p/>
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * <p/>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p/>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 package com.google.firebase.codelab.friendlychat;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -68,6 +55,9 @@ import com.google.firebase.appindexing.builders.Indexables;
 import com.google.firebase.appindexing.builders.PersonBuilder;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.codelab.friendlychat.Utils.FirebaseUtils;
+import com.google.firebase.codelab.friendlychat.Utils.ManageFileUtils;
+import com.google.firebase.codelab.friendlychat.callback.OnMessageImageCallback;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -85,9 +75,10 @@ import java.util.Map;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import timber.log.Timber;
 
 public class CustomMainActivity extends AppCompatActivity
-        implements GoogleApiClient.OnConnectionFailedListener {
+        implements GoogleApiClient.OnConnectionFailedListener, OnMessageImageCallback {
 
     // Storage Permissions
     private static final int REQUEST_EXTERNAL_STORAGE = 1;
@@ -117,10 +108,12 @@ public class CustomMainActivity extends AppCompatActivity
 
     private LinearLayoutManager mLinearLayoutManager;
 
+    private static final String ARG_IMAGE_URL = "arg_image_url";
     private static final String TAG = "MainActivity";
     public static final String MESSAGES_CHILD = "messages";
     private static final int REQUEST_INVITE = 1;
     private static final int REQUEST_IMAGE = 2;
+    private static final int REQUEST_FILE_CODE = 4;
     private static final int REQUEST_CAMERA_PHOTO = 3;
     private static final String LOADING_IMAGE_URL = "https://www.google.com/images/spin-32.gif";
     public static final int DEFAULT_MSG_LENGTH_LIMIT = 10;
@@ -130,11 +123,13 @@ public class CustomMainActivity extends AppCompatActivity
     private String mPhotoUrl;
     private String mUserType;
     private SharedPreferences mSharedPreferences;
+    private FirebaseUtils firebaseUtils;
     private GoogleApiClient mGoogleApiClient;
     private static final String MESSAGE_URL = "http://friendlychat.firebase.google.com/message/";
     //File
     private File filePathImageCamera;
     private final static String PROFILE_IMAGE_FILENAME = "FriendlyChatDemo.jpg";
+    private final static String FILES_DIR = "CHAT_FILES";
 
 
     // Firebase instance variables
@@ -154,7 +149,41 @@ public class CustomMainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
         mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        // Set default username is anonymous.
+        initFirebaseAuth();
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .enableAutoManage(this /* FragmentActivity */, this /* OnConnectionFailedListener */)
+                .addApi(Auth.GOOGLE_SIGN_IN_API)
+                .build();
+        initFirebaseRemoteConfig();
+
+        //AddView
+        AdRequest adRequest = new AdRequest.Builder().build();
+        mAdView.loadAd(adRequest);
+
+        setMessageRecyclerViewAdapter();
+        setMessageInputText();
+
+
+        mSendButton.setOnClickListener(view -> {
+            // Send messages on click.
+            sendUserMessage();
+        });
+
+        mAddMessageImageView.setOnClickListener(view -> {
+            // Select image for image message on click.
+            //selectImage();
+            showPhotoDialog();
+        });
+    }
+
+
+    private void initFirebaseRemoteConfig() {
+        // Initialize Firebase Remote Config.
+        firebaseUtils = new FirebaseUtils(mFirebaseRemoteConfig, mMessageEditText);
+        firebaseUtils.setUpFirebaseRemoteConfig();
+    }
+
+    private void initFirebaseAuth() {
         mUsername = ANONYMOUS;
         // Initialize Firebase Auth
         mFirebaseAuth = FirebaseAuth.getInstance();
@@ -170,19 +199,9 @@ public class CustomMainActivity extends AppCompatActivity
                 mPhotoUrl = mFirebaseUser.getPhotoUrl().toString();
             }
         }
+    }
 
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .enableAutoManage(this /* FragmentActivity */, this /* OnConnectionFailedListener */)
-                .addApi(Auth.GOOGLE_SIGN_IN_API)
-                .build();
-
-        //AddView
-        AdRequest adRequest = new AdRequest.Builder().build();
-        mAdView.loadAd(adRequest);
-
-        // Initialize Firebase Remote Config.
-        setUpFirebaseRemoteConfig();
-
+    private void setMessageRecyclerViewAdapter() {
         // Initialize ProgressBar and RecyclerView.
         mLinearLayoutManager = new LinearLayoutManager(this);
         mLinearLayoutManager.setStackFromEnd(true);
@@ -211,7 +230,7 @@ public class CustomMainActivity extends AppCompatActivity
                         .setQuery(messagesRef, parser)
                         .build();
 
-        chatFirebaseAdapter = new ChatFirebaseAdapter(options, mUsername, this);
+        chatFirebaseAdapter = new ChatFirebaseAdapter(options, mUsername, this, this);
         chatFirebaseAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
             @Override
             public void onItemRangeInserted(int positionStart, int itemCount) {
@@ -231,8 +250,9 @@ public class CustomMainActivity extends AppCompatActivity
         });
 
         mMessageRecyclerView.setAdapter(chatFirebaseAdapter);
+    }
 
-
+    private void setMessageInputText() {
         mMessageEditText.setFilters(new InputFilter[]{new InputFilter.LengthFilter(mSharedPreferences
                 .getInt(CodelabPreferences.FRIENDLY_MSG_LENGTH, DEFAULT_MSG_LENGTH_LIMIT))});
         mMessageEditText.addTextChangedListener(new TextWatcher() {
@@ -253,30 +273,14 @@ public class CustomMainActivity extends AppCompatActivity
             public void afterTextChanged(Editable editable) {
             }
         });
-
-        mSendButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                // Send messages on click.
-                sendUserMessage();
-            }
-        });
-
-        mAddMessageImageView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                // Select image for image message on click.
-                //selectImage();
-                showPhotoDialog();
-            }
-        });
     }
 
 
+    @SuppressLint("TimberArgCount")
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        Log.d(TAG, "onActivityResult: requestCode=" + requestCode + ", resultCode=" + resultCode);
+        Timber.d(TAG, "onActivityResult: requestCode=" + requestCode + ", resultCode=" + resultCode);
         switch (requestCode) {
             case RESULT_CANCELED:
                 return;
@@ -289,7 +293,42 @@ public class CustomMainActivity extends AppCompatActivity
             case REQUEST_INVITE:
                 performActionForInvite(resultCode, data);
                 break;
+            case REQUEST_FILE_CODE:
+                performActionForSelectFile(resultCode, data);
         }
+    }
+
+    private void performActionForSelectFile(int resultCode, Intent data) {
+        if (resultCode == RESULT_OK) {
+            if (data != null) {
+                final Uri uri = data.getData();
+                Timber.d(uri.toString());
+
+                FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
+                        LOADING_IMAGE_URL, null);
+                mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
+                        .setValue(tempMessage, new DatabaseReference.CompletionListener() {
+                            @Override
+                            public void onComplete(DatabaseError databaseError,
+                                                   DatabaseReference databaseReference) {
+                                if (databaseError == null) {
+                                    String key = databaseReference.getKey();
+                                    StorageReference storageReference =
+                                            FirebaseStorage.getInstance()
+                                                    .getReference(mFirebaseUser.getUid())
+                                                    .child(key)
+                                                    .child(uri.getLastPathSegment());
+
+                                    putFileInStorage(storageReference, uri, key);
+                                } else {
+                                    Log.w(TAG, "Unable to write message to database.",
+                                            databaseError.toException());
+                                }
+                            }
+                        });
+            }
+        }
+
     }
 
     private void performActionForInvite(int resultCode, Intent data) {
@@ -311,7 +350,7 @@ public class CustomMainActivity extends AppCompatActivity
                 Log.d(TAG, "Uri: " + uri.toString());
 
                 FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
-                        LOADING_IMAGE_URL);
+                        LOADING_IMAGE_URL, null);
                 mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
                         .setValue(tempMessage, new DatabaseReference.CompletionListener() {
                             @Override
@@ -338,12 +377,12 @@ public class CustomMainActivity extends AppCompatActivity
 
     private void performActionForUseCamera(int resultCode, Intent data) {
         if (resultCode == RESULT_OK) {
-            File currentFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
+            File currentFile = ManageFileUtils.getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
             if (currentFile == null) {
                 return;
             }
             FriendlyMessage tempMessage = new FriendlyMessage(null, mUsername, mPhotoUrl,
-                    LOADING_IMAGE_URL);
+                    LOADING_IMAGE_URL, null);
             mFirebaseDatabaseReference.child(MESSAGES_CHILD).push()
                     .setValue(tempMessage, new DatabaseReference.CompletionListener() {
                         @Override
@@ -359,8 +398,7 @@ public class CustomMainActivity extends AppCompatActivity
 
                                 putImageInStorage(storageReference, Uri.fromFile(currentFile), key);
                             } else {
-                                Log.w(TAG, "Unable to write message to database.",
-                                        databaseError.toException());
+                                Timber.d(databaseError.toException());
                             }
                         }
                     });
@@ -385,14 +423,13 @@ public class CustomMainActivity extends AppCompatActivity
                     if (downUri != null) {
                         FriendlyMessage friendlyMessage =
                                 new FriendlyMessage(null, mUsername, mPhotoUrl,
-                                        downUri.toString());
+                                        downUri.toString(), null);
                         mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
                                 .setValue(friendlyMessage);
                     }
-                    Log.d(TAG, "onComplete: Url: " + downUri.toString());
+                    Timber.d(downUri.toString());
                 }
-                Log.w(TAG, "Image upload task was not successful.",
-                        task.getException());
+                Timber.d(task.getException());
             }
         });
 
@@ -405,12 +442,57 @@ public class CustomMainActivity extends AppCompatActivity
                             FriendlyMessage friendlyMessage =
                                     new FriendlyMessage(null, mUsername, mPhotoUrl,
                                             storageReference.getDownloadUrl()
-                                                    .toString());
+                                                    .toString(), null);
                             mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
                                     .setValue(friendlyMessage);
                         } else {
-                            Log.w(TAG, "Image upload task was not successful.",
-                                    task.getException());
+                            Timber.d(task.getException());
+                        }
+                    }
+                });
+    }
+
+    private void putFileInStorage(final StorageReference storageReference, Uri uri, final String key) {
+        storageReference.putFile(uri).continueWithTask(new Continuation<UploadTask.TaskSnapshot, Task<Uri>>() {
+            @Override
+            public Task<Uri> then(@NonNull Task<UploadTask.TaskSnapshot> task) throws Exception {
+                if (!task.isSuccessful()) {
+                    throw task.getException();
+                }
+                return storageReference.getDownloadUrl();
+            }
+        }).addOnCompleteListener(new OnCompleteListener<Uri>() {
+            @Override
+            public void onComplete(@NonNull Task<Uri> task) {
+                if (task.isSuccessful()) {
+                    Uri downUri = task.getResult();
+                    if (downUri != null) {
+                        FriendlyMessage friendlyMessage =
+                                new FriendlyMessage(null, mUsername, mPhotoUrl,
+                                        null, downUri.toString());
+                        mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
+                                .setValue(friendlyMessage);
+                    }
+                    Timber.d(downUri.toString());
+                }
+                Timber.d(task.getException());
+            }
+        });
+
+
+        storageReference.putFile(uri).addOnCompleteListener(CustomMainActivity.this,
+                new OnCompleteListener<UploadTask.TaskSnapshot>() {
+                    @Override
+                    public void onComplete(@NonNull Task<UploadTask.TaskSnapshot> task) {
+                        if (task.isSuccessful()) {
+                            FriendlyMessage friendlyMessage =
+                                    new FriendlyMessage(null, mUsername, mPhotoUrl,
+                                            null, storageReference.getDownloadUrl()
+                                            .toString());
+                            mFirebaseDatabaseReference.child(MESSAGES_CHILD).child(key)
+                                    .setValue(friendlyMessage);
+                        } else {
+                            Timber.d(task.getException());
                         }
                     }
                 });
@@ -461,11 +543,11 @@ public class CustomMainActivity extends AppCompatActivity
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.crash_menu:
-                Log.w("Crashlytics", "Crash button clicked");
+                Timber.d("Crashlytics Crash button clicked");
                 causeCrash();
                 return true;
             case R.id.fresh_config_menu:
-                fetchConfig();
+                firebaseUtils.fetchConfig();
                 return true;
             case R.id.sign_out_menu:
                 mFirebaseAuth.signOut();
@@ -486,7 +568,7 @@ public class CustomMainActivity extends AppCompatActivity
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
         // An unresolvable error has occurred and Google APIs (including Sign-In) will not
         // be available.
-        Log.d(TAG, "onConnectionFailed:" + connectionResult);
+        Timber.d(connectionResult.toString());
         Toast.makeText(this, "Google Play Services error.", Toast.LENGTH_SHORT).show();
     }
 
@@ -495,7 +577,8 @@ public class CustomMainActivity extends AppCompatActivity
                 FriendlyMessage(mMessageEditText.getText().toString(),
                 mUsername,
                 mPhotoUrl,
-                null /* no image */);
+                null /* no image */,
+                null);
         mFirebaseDatabaseReference.child(MESSAGES_CHILD)
                 .push().setValue(friendlyMessage);
         mMessageEditText.setText("");
@@ -511,14 +594,14 @@ public class CustomMainActivity extends AppCompatActivity
     private void selectFile() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/pdf");
-        startActivityForResult(intent, REQUEST_IMAGE);
+        intent.setType("*/*");
+        startActivityForResult(intent, REQUEST_FILE_CODE);
     }
 
     private void takeImageFromCamera() {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         String photoName = DateFormat.format("yyyy-MM-dd_hhmmss", new Date()).toString();
-        File capturedImageFile = getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
+        File capturedImageFile = ManageFileUtils.getFileFromAppExternalDirectory(PROFILE_IMAGE_FILENAME);
         if (capturedImageFile == null) {
             return;
         }
@@ -580,73 +663,6 @@ public class CustomMainActivity extends AppCompatActivity
                 .build();
     }
 
-    private void setUpFirebaseRemoteConfig() {
-        // Initialize Firebase Remote Config.
-        mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
-
-        // Define Firebase Remote Config Settings.
-        FirebaseRemoteConfigSettings firebaseRemoteConfigSettings =
-                new FirebaseRemoteConfigSettings.Builder()
-                        .setDeveloperModeEnabled(true)
-                        .build();
-
-        // Define default config values. Defaults are used when fetched config values are not
-        // available. Eg: if an error occurred fetching values from the server.
-        Map<String, Object> defaultConfigMap = new HashMap<>();
-        defaultConfigMap.put("friendly_msg_length", 10L);
-
-        // Apply config settings and default values.
-        mFirebaseRemoteConfig.setConfigSettings(firebaseRemoteConfigSettings);
-        mFirebaseRemoteConfig.setDefaults(defaultConfigMap);
-
-        // Fetch remote config.
-        fetchConfig();
-    }
-
-    // Fetch the config to determine the allowed length of messages.
-    public void fetchConfig() {
-        long cacheExpiration = 3600; // 1 hour in seconds
-        // If developer mode is enabled reduce cacheExpiration to 0 so that
-        // each fetch goes to the server. This should not be used in release
-        // builds.
-        if (mFirebaseRemoteConfig.getInfo().getConfigSettings()
-                .isDeveloperModeEnabled()) {
-            cacheExpiration = 0;
-        }
-        mFirebaseRemoteConfig.fetch(cacheExpiration)
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void aVoid) {
-                        // Make the fetched config available via
-                        // FirebaseRemoteConfig get<type> calls.
-                        mFirebaseRemoteConfig.activateFetched();
-                        applyRetrievedLengthLimit();
-                    }
-                })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        // There has been an error fetching the config
-                        Log.w(TAG, "Error fetching config: " +
-                                e.getMessage());
-                        applyRetrievedLengthLimit();
-                    }
-                });
-    }
-
-    /**
-     * Apply retrieved length limit to edit text field.
-     * This result may be fresh from the server or it may be from cached
-     * values.
-     */
-    private void applyRetrievedLengthLimit() {
-        Long friendly_msg_length =
-                mFirebaseRemoteConfig.getLong("friendly_msg_length");
-        mMessageEditText.setFilters(new InputFilter[]{new
-                InputFilter.LengthFilter(friendly_msg_length.intValue())});
-        Log.d(TAG, "FML is: " + friendly_msg_length);
-    }
-
     //Send invitation
     private void sendInvitation() {
         Intent intent = new AppInviteInvitation.IntentBuilder(getString(R.string.invitation_title))
@@ -660,27 +676,6 @@ public class CustomMainActivity extends AppCompatActivity
         throw new NullPointerException("Fake null pointer exception");
     }
 
-    public static File getFileFromAppExternalDirectory(String filename) {
-        if (!Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            return null;
-        }
-
-
-        File root = null;
-
-        try {
-            root = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString(), "FriendlyChat");
-            root.mkdirs();
-        } catch (Exception e) {
-            Log.e(TAG, e.toString());
-        }
-
-        if (root == null) {
-            return null;
-        }
-
-        return new File(root, filename);
-    }
 
     public void verifyStoragePermissions() {
 
@@ -724,4 +719,12 @@ public class CustomMainActivity extends AppCompatActivity
         }
     }
 
+    @Override
+    public void onMessageImageClicked(String imageUrl) {
+        Intent intent = new Intent(this, MessageImagePreviewActivity.class);
+        Bundle passDataBundle = new Bundle();
+        passDataBundle.putString(ARG_IMAGE_URL, imageUrl);
+        intent.putExtras(passDataBundle);
+        startActivity(intent);
+    }
 }
